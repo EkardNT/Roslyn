@@ -10,15 +10,13 @@ namespace Microsoft.CodeAnalysis.CSharp.Utilities
 
             if (text == null)
                 return false;
-            if (!HasOctalPrefix(text))
-                return false;
 
             // This is a placeholder implementation. It will be replaced 
             // with a more performant manual conversion once the rest 
             // of the octal literal code is working.
             try
             {
-                result = Convert.ToUInt64(text.Substring(2, text.Length - 2), 8);
+                result = Convert.ToUInt64(text, 8);
                 return true;
             }
             catch

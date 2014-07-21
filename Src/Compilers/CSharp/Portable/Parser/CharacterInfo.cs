@@ -23,6 +23,16 @@ namespace Microsoft.CodeAnalysis.CSharp
         }
 
         /// <summary>
+        /// Returns true if the Unicode character is an octal digit.
+        /// </summary>
+        /// <param name="c">The Unicode character.</param>
+        /// <returns>True if the character is an octal digit 0-7, false otherwise.</returns>
+        internal static bool IsOctalDigit(char c)
+        {
+            return c >= '0' && c <= '7';
+        }
+
+        /// <summary>
         /// Returns true if the Unicode character is a decimal digit.
         /// </summary>
         /// <param name="c">The Unicode character.</param>
@@ -40,6 +50,16 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert(IsHexDigit(c));
             return (c >= '0' && c <= '9') ? c - '0' : (c & 0xdf) - 'A' + 10;
+        }
+
+        /// <summary>
+        /// Returns the value of an octal Unicode character.
+        /// </summary>
+        /// <param name="c">The Unicode character.</param>
+        internal static int OctalValue(char c)
+        {
+            Debug.Assert(IsOctalDigit(c));
+            return c - '0';
         }
 
         /// <summary>

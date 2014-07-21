@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis.CSharp.Symbols;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.CSharp.Utilities;
 using Microsoft.CodeAnalysis.Text;
 using Roslyn.Utilities;
 
@@ -886,6 +887,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
             int start = TextWindow.Position;
             char ch;
             bool isHex = false;
+            bool isOctal = false;
             bool hasDecimal = false;
             bool hasExponent = false;
             info.Text = null;
@@ -895,10 +897,15 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
             bool hasLSuffix = false;
 
             ch = TextWindow.PeekChar();
-            if (ch == '0' && ((ch = TextWindow.PeekChar(1)) == 'x' || ch == 'X'))
+            if(ch == '0')
             {
-                TextWindow.AdvanceChar(2);
-                isHex = true;
+                ch = TextWindow.PeekChar(1);
+                isHex = ch == 'x' || ch == 'X';
+                isOctal = ch == 'o' || ch == 'O';
+                if (isOctal || isHex)
+                {
+                    TextWindow.AdvanceChar(2);
+                }
             }
 
             if (isHex)
@@ -935,6 +942,30 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                         TextWindow.AdvanceChar();
                         hasLSuffix = true;
                     }
+                }
+            }
+            else if(isOctal)
+            {
+                while (SyntaxFacts.IsOctalDigit(ch = TextWindow.PeekChar()))
+                {
+                    this.builder.Append(ch);
+                    TextWindow.AdvanceChar();
+                }
+
+                if ((ch = TextWindow.PeekChar()) == 'L' || ch == 'l')
+                {
+                    if (ch == 'l')
+                    {
+                        this.AddError(TextWindow.Position, 1, ErrorCode.WRN_LowercaseEllSuffix);
+                    }
+                    TextWindow.AdvanceChar();
+                    hasLSuffix = true;
+                }
+
+                if ((ch = TextWindow.PeekChar()) == 'u' || ch == 'U')
+                {
+                    TextWindow.AdvanceChar();
+                    hasUSuffix = true;
                 }
             }
             else
@@ -1084,7 +1115,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
                     }
                     else
                     {
-                        val = this.GetValueUInt64(valueText, isHex);
+                        val = this.GetValueUInt64(valueText, isHex, isOctal);
                     }
 
                     // 2.4.4.2 Integer literals
@@ -1194,13 +1225,32 @@ namespace Microsoft.CodeAnalysis.CSharp.Syntax.InternalSyntax
         }
 
         //used for all non-directive integer literals (cast to desired type afterward)
-        private ulong GetValueUInt64(string text, bool isHex)
+        private ulong GetValueUInt64(string text, bool isHex, bool isOctal)
         {
             ulong result;
-            if (!UInt64.TryParse(text, isHex ? NumberStyles.AllowHexSpecifier : NumberStyles.None, CultureInfo.InvariantCulture, out result))
+	        if (isOctal)
+	        {
+		        if (!OctalParsing.TryParse(text, out result))
+				{
+					//we've already lexed the literal, so the error must be from overflow
+					this.AddError(MakeError(ErrorCode.ERR_IntOverflow));
+		        }
+	        }
+			else if (isHex)
+			{
+				if (!UInt64.TryParse(text, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out result))
+				{
+					//we've already lexed the literal, so the error must be from overflow
+					this.AddError(MakeError(ErrorCode.ERR_IntOverflow));
+				}
+			}
+            else
             {
-                //we've already lexed the literal, so the error must be from overflow
-                this.AddError(MakeError(ErrorCode.ERR_IntOverflow));
+	            if (!UInt64.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out result))
+	            {
+					//we've already lexed the literal, so the error must be from overflow
+					this.AddError(MakeError(ErrorCode.ERR_IntOverflow));
+				}
             }
 
             return result;
